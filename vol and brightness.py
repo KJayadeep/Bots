@@ -6,6 +6,7 @@ from math import hypot
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from ctypes import cast, POINTER
 from comtypes import CLSCTX_ALL
+import pyautogui
 
 
 def main():
@@ -47,6 +48,11 @@ def main():
                 vol = np.interp(right_distance, [50, 220], [minVol, maxVol])
                 volume.SetMasterVolumeLevel(vol, None)
 
+            # Capture screenshot when two palms are detected and the lines intersect
+            if len(left_landmark_list) >= 2 and len(right_landmark_list) >= 2:
+                if lines_intersect(left_landmark_list, right_landmark_list):
+                    pyautogui.screenshot("screenshot.png")
+
             cv2.imshow('Image', frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -76,17 +82,41 @@ def get_left_right_landmarks(frame, processed, draw, mpHands):
     return left_landmark_list, right_landmark_list
 
 
-def get_distance(frame, landmark_ist):
-    if len(landmark_ist) < 2:
+def get_distance(frame, landmark_list):
+    if len(landmark_list) < 2:
         return
-    (x1, y1), (x2, y2) = (landmark_ist[0][1], landmark_ist[0][2]), \
-        (landmark_ist[1][1], landmark_ist[1][2])
+    (x1, y1), (x2, y2) = (landmark_list[0][1], landmark_list[0][2]), \
+                         (landmark_list[1][1], landmark_list[1][2])
     cv2.circle(frame, (x1, y1), 7, (0, 255, 0), cv2.FILLED)
     cv2.circle(frame, (x2, y2), 7, (0, 255, 0), cv2.FILLED)
     cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
     L = hypot(x2 - x1, y2 - y1)
 
     return L
+
+
+def lines_intersect(left_landmark_list, right_landmark_list):
+    # Check if the lines formed by the landmarks intersect
+    (x1, y1), (x2, y2) = (left_landmark_list[0][1], left_landmark_list[0][2]), \
+                         (left_landmark_list[1][1], left_landmark_list[1][2])
+    (x3, y3), (x4, y4) = (right_landmark_list[0][1], right_landmark_list[0][2]), \
+                         (right_landmark_list[1][1], right_landmark_list[1][2])
+
+    # Calculate the determinant to check if lines are parallel
+    det = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if det == 0:
+        return False  # Lines are parallel, no intersection
+
+    # Calculate intersection point
+    intersect_x = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / det
+    intersect_y = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / det
+
+    # Check if intersection point is within the range of the two lines
+    if min(x1, x2) <= intersect_x <= max(x1, x2) and min(y1, y2) <= intersect_y <= max(y1, y2) and \
+            min(x3, x4) <= intersect_x <= max(x3, x4) and min(y3, y4) <= intersect_y <= max(y3, y4):
+        return True
+
+    return False
 
 
 if __name__ == '__main__':
